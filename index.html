@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="zh">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Popups + Long Letter</title>
+  <style>
+    html, body { height: 100%; }
+    body{
+      margin:0;
+      overflow:hidden;
+      background: radial-gradient(1200px 700px at 60% 25%, #2b2f3a, #0d0f14);
+      font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+
+    /* 通用弹窗 */
+    .popup{
+      position:absolute;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.26);
+      box-shadow: 0 18px 40px rgba(0,0,0,.45);
+      backdrop-filter: blur(10px);
+      user-select:none;
+      overflow:hidden;
+      transform-origin: 30% 30%;
+    }
+
+    .bar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding: 10px 10px 8px 12px;
+      cursor: grab;
+      border-bottom: 1px solid rgba(255,255,255,.18);
+      background: linear-gradient(to bottom, rgba(255,255,255,.16), rgba(255,255,255,.04));
+    }
+    .title{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      font-size: 12px;
+      opacity:.92;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      max-width: 72%;
+      color: rgba(20,20,20,.86);
+    }
+    .dot{
+      width:9px;height:9px;border-radius:50%;
+      background: rgba(20,20,20,.28);
+      box-shadow: 0 0 0 2px rgba(255,255,255,.30) inset;
+      flex: 0 0 auto;
+    }
+    .close{
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,.24);
+      background: rgba(255,255,255,.18);
+      color: rgba(20,20,20,.75);
+      cursor:pointer;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size: 16px;
+      line-height: 1;
+    }
+    .close:hover{ background: rgba(255,255,255,.30); }
+
+    .content{
+      padding: 10px 12px 12px 12px;
+      font-size: 14px;
+      line-height: 1.6;
+      color: rgba(20,20,20,.86);
+      user-select:text;
+      white-space: pre-wrap;      /* 自动换行 + 支持 \n */
+      word-break: break-word;     /* 避免长单词撑爆 */
+    }
+
+    /* 短弹窗：小一点 */
+    .popup.small{ width: 280px; }
+    .popup.small .content{ max-height: 110px; overflow:auto; }
+
+    /* 长信弹窗：大一点、像“最后一张” */
+    .popup.letter{
+      width: min(720px, calc(100vw - 24px));
+      height: min(78vh, 680px);
+    }
+    .popup.letter .content{
+      height: calc(100% - 52px);
+      overflow:auto;              /* 超长滚动 */
+      font-size: 15px;
+      line-height: 1.75;
+      padding: 18px 18px 18px 18px;
+    }
+
+    /* 滚动条美化（可选） */
+    .content::-webkit-scrollbar{ width: 10px; }
+    .content::-webkit-scrollbar-thumb{
+      background: rgba(0,0,0,.12);
+      border-radius: 99px;
+      border: 2px solid rgba(255,255,255,.55);
+    }
+
+    /* 弹出动画 + 轻微抖动（注意：抖动做得很轻） */
+    .pop-in{
+      animation: popIn .22s ease-out forwards, jitter 1.8s ease-in-out infinite;
+      transform: translateY(10px) scale(.98);
+      opacity: 0;
+    }
+    @keyframes popIn{
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    @keyframes jitter{
+      0%,100% { translate: 0 0; }
+      50% { translate: 0.6px -0.6px; } /* 很轻的抖动 */
+    }
+
+    /* 更“漂浮”一点（给长信用） */
+    .floaty{
+      animation: popIn .22s ease-out forwards, float 3.2s ease-in-out infinite;
+      transform: translateY(10px) scale(.98);
+      opacity: 0;
+    }
+    @keyframes float{
+      0%,100% { transform: translateY(0) scale(1); }
+      50%     { transform: translateY(-6px) scale(1); }
+    }
+
+    .hint{
+      position: fixed;
+      left: 12px;
+      bottom: 12px;
+      font-size: 12px;
+      opacity: .55;
+      color: #fff;
+      user-select:none;
+    }
+  </style>
+</head>
+<body>
+  <div class="hint">短弹窗随机刷屏 → 最后弹出一封长信（都可拖拽/关闭）</div>
+
+<script>
+  // 1) 柔和色系（粉/蓝/绿等），每次随机
+  const pastel = [
+    "#ffe0ea", "#ffd9f2", "#ffe9d2", "#fff4cc",
+    "#dff7ff", "#d9e8ff", "#e6ddff",
+    "#d9ffe9", "#dfffe0", "#e8fff7"
+  ];
+
+  // 2) 随机短句池（你随便加）
+  const shortMsgs = [
+    "今天过得开心嘛",
+    "好好爱自己",
+    "早点休息",
+    "别熬夜(ง•̀ω•́)ง",
+    "多喝水哦~",
+    "期待下一次见面",
+    "我想你了",
+    "你真的很棒",
+    "今天也要顺顺利利",
+    "记得保暖"
+  ];
+
+  // 3) 最后一封“长信”（示例：你替换成自己的内容即可）
+  const longLetter = `（这里放“最后一张”的长信内容）
+你可以直接粘贴很多段落，保持换行即可。
+
+比如：
+——
+我想把这段时间的心情，慢慢放在这里。
+不是为了让你立刻回应，
+而是让你在某个你愿意的时刻，能轻轻看到我还在。
+
+（中间省略若干段……）
+
+最后：
+愿你在这个季节里，得到你需要的温暖与安稳。
+——`;
+
+  const titles = ["温柔提示", "提醒", "消息", "便签", "叮咚"];
+
+  const rand = (min, max) => Math.random() * (max - min) + min;
+  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+
+  let topZ = 10;
+  let spawned = 0;
+  let letterShown = false;
+
+  function clamp(n, min, max){ return Math.max(min, Math.min(n, max)); }
+
+  function createPopup({text, kind="small"}){
+    const el = document.createElement("div");
+    el.className = `popup ${kind} ${kind==="letter" ? "floaty" : "pop-in"}`;
+    el.style.zIndex = String(++topZ);
+
+    // 背景柔和色
+    const bg = pick(pastel);
+    el.style.background = bg;
+
+    const title = kind==="letter" ? "给你的一封信" : pick(titles);
+
+    el.innerHTML = `
+      <div class="bar">
+        <div class="title"><span class="dot"></span><span>${title}</span></div>
+        <button class="close" aria-label="close">×</button>
+      </div>
+      <div class="content"></div>
+    `;
+
+    el.querySelector(".content").textContent = text;
+
+    document.body.appendChild(el);
+
+    // 随机位置：长信尽量居中，短窗随机
+    const pad = 12;
+    const rect = el.getBoundingClientRect();
+
+    let x, y;
+    if(kind === "letter"){
+      x = (window.innerWidth - rect.width) / 2;
+      y = clamp((window.innerHeight - rect.height) / 2, pad, window.innerHeight - rect.height - pad);
+    }else{
+      x = rand(pad, window.innerWidth - rect.width - pad);
+      y = rand(pad, window.innerHeight - rect.height - pad);
+    }
+    el.style.left = `${x}px`;
+    el.style.top  = `${y}px`;
+
+    // 置顶：点弹窗就到最上层
+    el.addEventListener("mousedown", () => el.style.zIndex = String(++topZ));
+
+    // 关闭
+    el.querySelector(".close").addEventListener("click", (e) => {
+      e.stopPropagation();
+      el.remove();
+    });
+
+    // 拖拽（标题栏）
+    const bar = el.querySelector(".bar");
+    let dragging = false;
+    let startX=0, startY=0, startLeft=0, startTop=0;
+
+    bar.addEventListener("mousedown", (e) => {
+      dragging = true;
+      bar.style.cursor = "grabbing";
+      el.style.zIndex = String(++topZ);
+
+      startX = e.clientX;
+      startY = e.clientY;
+      startLeft = parseFloat(el.style.left);
+      startTop  = parseFloat(el.style.top);
+      e.preventDefault();
+    });
+
+    window.addEventListener("mousemove", (e) => {
+      if(!dragging) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+
+      const r = el.getBoundingClientRect();
+      let nx = startLeft + dx;
+      let ny = startTop  + dy;
+
+      nx = clamp(nx, pad, window.innerWidth - r.width - pad);
+      ny = clamp(ny, pad, window.innerHeight - r.height - pad);
+
+      el.style.left = `${nx}px`;
+      el.style.top  = `${ny}px`;
+    });
+
+    window.addEventListener("mouseup", () => {
+      if(!dragging) return;
+      dragging = false;
+      bar.style.cursor = "grab";
+    });
+
+    return el;
+  }
+
+  // === 主流程：先刷短弹窗，后弹长信 ===
+
+  // 初始先铺一些
+  for(let i=0;i<10;i++){
+    createPopup({text: pick(shortMsgs), kind:"small"});
+    spawned++;
+  }
+
+  // 持续随机刷（“前面的随机顺序出现”）
+  const intervalMs = 150; // 越小越密
+  const maxShort = 60;    // 刷到多少个短窗后，弹最后长信
+  const timer = setInterval(() => {
+    if(letterShown) return;
+
+    if(spawned < maxShort){
+      createPopup({text: pick(shortMsgs), kind:"small"});
+      spawned++;
+      return;
+    }
+
+    // 停止刷短窗，弹最后一封长信
+    clearInterval(timer);
+    letterShown = true;
+    createPopup({text: longLetter, kind:"letter"});
+  }, intervalMs);
+
+</script>
+</body>
+</html>
