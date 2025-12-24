@@ -11,6 +11,7 @@
       overflow:hidden;
       background: radial-gradient(1200px 700px at 60% 25%, #2b2f3a, #0d0f14);
       font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+      isolation: isolate;
     }
 
     /* 通用弹窗 */
@@ -209,7 +210,7 @@
   const pick = arr => arr[Math.floor(Math.random() * arr.length)];
   const clamp = (n, min, max) => Math.max(min, Math.min(n, max));
 
-  let topZ = 10;
+  let topZ = 1000;
   let letterShown = false;
 
   // 洗牌：保证随机顺序且不重复
@@ -236,25 +237,19 @@
     el.style.background = pick(pastel);
 
     // 关键：长信永远在“最底层”
-    if (kind === "letter") {
-      el.style.zIndex = "1";
-    } else {
-      el.style.zIndex = String(++topZ);
-    }
+// 关键：短窗从很高的 z-index 开始，长信固定很低
+if (kind === "letter") {
+  el.style.zIndex = "0";
+} else {
+  el.style.zIndex = String(++topZ);
+}
 
-    const title = kind==="letter" ? "给你的一封信" : pick(titles);
-
-    el.innerHTML = `
-      <div class="bar">
-        <div class="title"><span class="dot"></span><span>${title}</span></div>
-        <button class="close" aria-label="close">×</button>
-      </div>
-      <div class="content"></div>
-    `;
-
-    el.querySelector(".content").textContent = text;
-
-    document.body.appendChild(el);
+// 关键：长信插到 DOM 最前面（永远在最底层）
+if (kind === "letter") {
+  document.body.insertBefore(el, document.body.firstChild);
+} else {
+  document.body.appendChild(el);
+}
 
     // 位置：长信尽量居中，短窗随机
     const pad = 12;
