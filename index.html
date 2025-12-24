@@ -225,97 +225,106 @@
     return shortQueue.length ? shortQueue.shift() : null; // 用完就 null（不再重复）
   }
 
-  function createPopup({text, kind="small"}){
-    const el = document.createElement("div");
-    el.className = `popup ${kind} ${kind==="letter" ? "floaty" : "pop-in"}`;
+function createPopup({text, kind="small"}){
+  const el = document.createElement("div");
+  el.className = `popup ${kind} ${kind==="letter" ? "floaty" : "pop-in"}`;
 
-    // 背景柔和色
-    el.style.background = pick(pastel);
+  // 背景柔和色
+  el.style.background = pick(pastel);
 
-    // 关键：长信永远在“最底层”
-// 关键：短窗从很高的 z-index 开始，长信固定很低
-if (kind === "letter") {
-  el.style.zIndex = "0";
-} else {
-  el.style.zIndex = String(++topZ);
-}
+  // 先把结构塞进去（你之前这段丢了，导致黑屏）
+  const title = kind==="letter" ? "给你的一封信" : pick(titles);
+  el.innerHTML = `
+    <div class="bar">
+      <div class="title"><span class="dot"></span><span>${title}</span></div>
+      <button class="close" aria-label="close">×</button>
+    </div>
+    <div class="content"></div>
+  `;
+  el.querySelector(".content").textContent = text;
 
-// 关键：长信插到 DOM 最前面（永远在最底层）
-if (kind === "letter") {
-  document.body.insertBefore(el, document.body.firstChild);
-} else {
-  document.body.appendChild(el);
-}
-
-    // 位置：长信尽量居中，短窗随机
-    const pad = 12;
-    const rect = el.getBoundingClientRect();
-
-    let x, y;
-    if(kind === "letter"){
-      x = (window.innerWidth - rect.width) / 2;
-      y = clamp((window.innerHeight - rect.height) / 2, pad, window.innerHeight - rect.height - pad);
-    }else{
-      x = rand(pad, window.innerWidth - rect.width - pad);
-      y = rand(pad, window.innerHeight - rect.height - pad);
-    }
-    el.style.left = `${x}px`;
-    el.style.top  = `${y}px`;
-
-    // 置顶：短窗可置顶，长信不允许置顶（保持底层）
-    el.addEventListener("mousedown", () => {
-      if(kind !== "letter") el.style.zIndex = String(++topZ);
-    });
-
-    // 关闭
-    el.querySelector(".close").addEventListener("click", (e) => {
-      e.stopPropagation();
-      el.remove();
-    });
-
-    // 拖拽（标题栏）
-    const bar = el.querySelector(".bar");
-    let dragging = false;
-    let startX=0, startY=0, startLeft=0, startTop=0;
-
-    bar.addEventListener("mousedown", (e) => {
-      dragging = true;
-      bar.style.cursor = "grabbing";
-
-      // 短窗拖拽时顺便置顶；长信仍然不置顶
-      if(kind !== "letter") el.style.zIndex = String(++topZ);
-
-      startX = e.clientX;
-      startY = e.clientY;
-      startLeft = parseFloat(el.style.left);
-      startTop  = parseFloat(el.style.top);
-      e.preventDefault();
-    });
-
-    window.addEventListener("mousemove", (e) => {
-      if(!dragging) return;
-      const dx = e.clientX - startX;
-      const dy = e.clientY - startY;
-
-      const r = el.getBoundingClientRect();
-      let nx = startLeft + dx;
-      let ny = startTop  + dy;
-
-      nx = clamp(nx, pad, window.innerWidth - r.width - pad);
-      ny = clamp(ny, pad, window.innerHeight - r.height - pad);
-
-      el.style.left = `${nx}px`;
-      el.style.top  = `${ny}px`;
-    });
-
-    window.addEventListener("mouseup", () => {
-      if(!dragging) return;
-      dragging = false;
-      bar.style.cursor = "grab";
-    });
-
-    return el;
+  // 关键：短窗从很高的 z-index 开始，长信固定很低
+  if (kind === "letter") {
+    el.style.zIndex = "0";
+  } else {
+    el.style.zIndex = String(++topZ);
   }
+
+  // 关键：长信插到 DOM 最前面（永远在最底层）
+  if (kind === "letter") {
+    document.body.insertBefore(el, document.body.firstChild);
+  } else {
+    document.body.appendChild(el);
+  }
+
+  // 位置：长信尽量居中，短窗随机
+  const pad = 12;
+  const rect = el.getBoundingClientRect();
+
+  let x, y;
+  if(kind === "letter"){
+    x = (window.innerWidth - rect.width) / 2;
+    y = clamp((window.innerHeight - rect.height) / 2, pad, window.innerHeight - rect.height - pad);
+  }else{
+    x = rand(pad, window.innerWidth - rect.width - pad);
+    y = rand(pad, window.innerHeight - rect.height - pad);
+  }
+  el.style.left = `${x}px`;
+  el.style.top  = `${y}px`;
+
+  // 置顶：短窗可置顶，长信不允许置顶（保持底层）
+  el.addEventListener("mousedown", () => {
+    if(kind !== "letter") el.style.zIndex = String(++topZ);
+  });
+
+  // 关闭
+  el.querySelector(".close").addEventListener("click", (e) => {
+    e.stopPropagation();
+    el.remove();
+  });
+
+  // 拖拽（标题栏）
+  const bar = el.querySelector(".bar");
+  let dragging = false;
+  let startX=0, startY=0, startLeft=0, startTop=0;
+
+  bar.addEventListener("mousedown", (e) => {
+    dragging = true;
+    bar.style.cursor = "grabbing";
+    if(kind !== "letter") el.style.zIndex = String(++topZ);
+
+    startX = e.clientX;
+    startY = e.clientY;
+    startLeft = parseFloat(el.style.left);
+    startTop  = parseFloat(el.style.top);
+    e.preventDefault();
+  });
+
+  window.addEventListener("mousemove", (e) => {
+    if(!dragging) return;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+
+    const r = el.getBoundingClientRect();
+    let nx = startLeft + dx;
+    let ny = startTop  + dy;
+
+    nx = clamp(nx, pad, window.innerWidth - r.width - pad);
+    ny = clamp(ny, pad, window.innerHeight - r.height - pad);
+
+    el.style.left = `${nx}px`;
+    el.style.top  = `${ny}px`;
+  });
+
+  window.addEventListener("mouseup", () => {
+    if(!dragging) return;
+    dragging = false;
+    bar.style.cursor = "grab";
+  });
+
+  return el;
+}
+
 
   // === 主流程：短句（不重复）刷完 → 弹长信（底层） ===
 
