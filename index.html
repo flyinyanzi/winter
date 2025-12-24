@@ -78,24 +78,24 @@
       word-break: break-word;     /* 避免长单词撑爆 */
     }
 
-    /* 短弹窗：小一点 */
+    /* 短弹窗 */
     .popup.small{ width: 280px; }
-    .popup.small .content{ max-height: 110px; overflow:auto; }
+    .popup.small .content{ max-height: 120px; overflow:auto; }
 
-    /* 长信弹窗：大一点、像“最后一张” */
+    /* 长信窗（大，滚动，不限字数） */
     .popup.letter{
       width: min(720px, calc(100vw - 24px));
       height: min(78vh, 680px);
     }
     .popup.letter .content{
       height: calc(100% - 52px);
-      overflow:auto;              /* 超长滚动 */
+      overflow:auto;
       font-size: 15px;
       line-height: 1.75;
       padding: 18px 18px 18px 18px;
     }
 
-    /* 滚动条美化（可选） */
+    /* 滚动条（可选） */
     .content::-webkit-scrollbar{ width: 10px; }
     .content::-webkit-scrollbar-thumb{
       background: rgba(0,0,0,.12);
@@ -103,7 +103,7 @@
       border: 2px solid rgba(255,255,255,.55);
     }
 
-    /* 弹出动画 + 轻微抖动（注意：抖动做得很轻） */
+    /* 弹出动画 + 轻微抖动 */
     .pop-in{
       animation: popIn .22s ease-out forwards, jitter 1.8s ease-in-out infinite;
       transform: translateY(10px) scale(.98);
@@ -117,7 +117,7 @@
       50% { translate: 0.6px -0.6px; } /* 很轻的抖动 */
     }
 
-    /* 更“漂浮”一点（给长信用） */
+    /* 长信更像漂浮底稿 */
     .floaty{
       animation: popIn .22s ease-out forwards, float 3.2s ease-in-out infinite;
       transform: translateY(10px) scale(.98);
@@ -140,65 +140,107 @@
   </style>
 </head>
 <body>
-  <div class="hint">短弹窗随机刷屏 → 最后弹出一封长信（都可拖拽/关闭）</div>
+  <div class="hint">短句：随机顺序且不重复｜长信：最底层｜都可拖拽/关闭</div>
 
 <script>
-  // 1) 柔和色系（粉/蓝/绿等），每次随机
+  // ========= 你主要改这里：短句 & 长信 =========
+
+  // 柔和色（粉/蓝/绿）
   const pastel = [
     "#ffe0ea", "#ffd9f2", "#ffe9d2", "#fff4cc",
     "#dff7ff", "#d9e8ff", "#e6ddff",
     "#d9ffe9", "#dfffe0", "#e8fff7"
   ];
 
-  // 2) 随机短句池（你随便加）
+  // 约 30 条短句（随机顺序，但每条只出现一次）
   const shortMsgs = [
     "今天过得开心嘛",
     "好好爱自己",
     "早点休息",
     "别熬夜(ง•̀ω•́)ง",
     "多喝水哦~",
-    "期待下一次见面",
-    "我想你了",
-    "你真的很棒",
+    "记得保暖",
     "今天也要顺顺利利",
-    "记得保暖"
+    "给你一个轻轻的拥抱",
+    "慢慢来，不着急",
+    "你已经很努力了",
+    "别对自己太苛刻",
+    "愿你今晚睡个好觉",
+    "想起你就觉得很温柔",
+    "你值得被好好对待",
+    "如果累了就先停一停",
+    "愿你不被琐事消耗",
+    "别忘了吃点热的",
+    "今天也辛苦啦",
+    "我在这儿，不催你",
+    "愿你心里有一点光",
+    "愿你被世界轻轻放过",
+    "愿你有勇气也有松弛",
+    "不需要立刻回应",
+    "你可以按自己的节奏",
+    "希望你今天少一点烦",
+    "愿你有被理解的时刻",
+    "愿你明天更轻一点",
+    "愿你被温柔包围",
+    "愿你遇到小小的好运",
+    "我把想念放轻一点"
   ];
 
-  // 3) 最后一封“长信”（示例：你替换成自己的内容即可）
-  const longLetter = `（这里放“最后一张”的长信内容）
-你可以直接粘贴很多段落，保持换行即可。
+  // 最后一封长信（替换成你的信即可，字数不限制）
+  const longLetter = `（把你的长信粘贴在这里）
 
-比如：
+你可以直接保留自然分段与换行。
+内容会自动换行，超长会滚动。
+
 ——
+（示例）
 我想把这段时间的心情，慢慢放在这里。
 不是为了让你立刻回应，
 而是让你在某个你愿意的时刻，能轻轻看到我还在。
 
-（中间省略若干段……）
-
-最后：
-愿你在这个季节里，得到你需要的温暖与安稳。
+……
 ——`;
+
+  // ========= 逻辑部分（一般不用改） =========
 
   const titles = ["温柔提示", "提醒", "消息", "便签", "叮咚"];
 
   const rand = (min, max) => Math.random() * (max - min) + min;
   const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+  const clamp = (n, min, max) => Math.max(min, Math.min(n, max));
 
   let topZ = 10;
-  let spawned = 0;
   let letterShown = false;
 
-  function clamp(n, min, max){ return Math.max(min, Math.min(n, max)); }
+  // 洗牌：保证随机顺序且不重复
+  function shuffle(arr){
+    const a = arr.slice();
+    for(let i=a.length-1; i>0; i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  // 本轮短句队列：每条只用一次
+  let shortQueue = shuffle(shortMsgs);
+  function nextShort(){
+    return shortQueue.length ? shortQueue.shift() : null; // 用完就 null（不再重复）
+  }
 
   function createPopup({text, kind="small"}){
     const el = document.createElement("div");
     el.className = `popup ${kind} ${kind==="letter" ? "floaty" : "pop-in"}`;
-    el.style.zIndex = String(++topZ);
 
     // 背景柔和色
-    const bg = pick(pastel);
-    el.style.background = bg;
+    el.style.background = pick(pastel);
+
+    // 关键：长信永远在“最底层”
+    if (kind === "letter") {
+      el.style.zIndex = "1";
+    } else {
+      el.style.zIndex = String(++topZ);
+    }
 
     const title = kind==="letter" ? "给你的一封信" : pick(titles);
 
@@ -214,7 +256,7 @@
 
     document.body.appendChild(el);
 
-    // 随机位置：长信尽量居中，短窗随机
+    // 位置：长信尽量居中，短窗随机
     const pad = 12;
     const rect = el.getBoundingClientRect();
 
@@ -229,8 +271,10 @@
     el.style.left = `${x}px`;
     el.style.top  = `${y}px`;
 
-    // 置顶：点弹窗就到最上层
-    el.addEventListener("mousedown", () => el.style.zIndex = String(++topZ));
+    // 置顶：短窗可置顶，长信不允许置顶（保持底层）
+    el.addEventListener("mousedown", () => {
+      if(kind !== "letter") el.style.zIndex = String(++topZ);
+    });
 
     // 关闭
     el.querySelector(".close").addEventListener("click", (e) => {
@@ -246,7 +290,9 @@
     bar.addEventListener("mousedown", (e) => {
       dragging = true;
       bar.style.cursor = "grabbing";
-      el.style.zIndex = String(++topZ);
+
+      // 短窗拖拽时顺便置顶；长信仍然不置顶
+      if(kind !== "letter") el.style.zIndex = String(++topZ);
 
       startX = e.clientX;
       startY = e.clientY;
@@ -280,27 +326,27 @@
     return el;
   }
 
-  // === 主流程：先刷短弹窗，后弹长信 ===
+  // === 主流程：短句（不重复）刷完 → 弹长信（底层） ===
 
-  // 初始先铺一些
-  for(let i=0;i<10;i++){
-    createPopup({text: pick(shortMsgs), kind:"small"});
-    spawned++;
+  // 初始先来一点短窗（不超过队列长度）
+  const initialCount = Math.min(10, shortMsgs.length);
+  for(let i=0;i<initialCount;i++){
+    const msg = nextShort();
+    if(msg) createPopup({text: msg, kind:"small"});
   }
 
-  // 持续随机刷（“前面的随机顺序出现”）
-  const intervalMs = 150; // 越小越密
-  const maxShort = 60;    // 刷到多少个短窗后，弹最后长信
+  // 持续刷短窗，直到队列用完
+  const intervalMs = 160; // 密度：调小更爆
   const timer = setInterval(() => {
     if(letterShown) return;
 
-    if(spawned < maxShort){
-      createPopup({text: pick(shortMsgs), kind:"small"});
-      spawned++;
+    const msg = nextShort();
+    if(msg){
+      createPopup({text: msg, kind:"small"});
       return;
     }
 
-    // 停止刷短窗，弹最后一封长信
+    // 短句全部用完：停止刷短窗，弹出长信（但在底层）
     clearInterval(timer);
     letterShown = true;
     createPopup({text: longLetter, kind:"letter"});
